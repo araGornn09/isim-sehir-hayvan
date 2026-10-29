@@ -1,0 +1,7 @@
+{
+  "appId": "com.example.isimsehirhayvan",
+  "appName": "İsim Şehir Hayvan",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "always" }
+}

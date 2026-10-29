@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function room(code) { return get(/databases/$(database)/documents/rooms/$(code)).data; }
+    function isMember(code) { return signedIn() && request.auth.uid in room(code).players; }
+
+    match /rooms/{code} {
+      // Katılmadan önce kodun varlığını kontrol edebilmek için okuma açık (giriş yapmış herkes).
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.hostId == request.auth.uid
+        && request.resource.data.players.keys().hasOnly([request.auth.uid])
+        && code.size() == 4;
+
+      // Üyeler odayı günceller; üye olmayan biri yalnızca kendini 2. oyuncu olarak ekleyebilir.
+      allow update: if signedIn() && (
+        request.auth.uid in resource.data.players
+        || (
+          resource.data.players.size() < 2
+          && request.resource.data.players.keys().hasAll(resource.data.players.keys())
+          && request.resource.data.players.keys().removeAll(resource.data.players.keys()).hasOnly([request.auth.uid])
+          && request.resource.data.players.size() <= 2
+        )
+      );
+
+      allow delete: if false;
+
+      match /rounds/{round} {
+        allow read, create, update: if isMember(code);
+      }
+
+      match /messages/{id} {
+        allow read: if isMember(code);
+        allow create: if isMember(code)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500;
+      }
+    }
+  }
+}
